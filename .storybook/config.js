@@ -1,4 +1,4 @@
-import { configure } from '@storybook/react';
+import { configure, getStorybook } from '@storybook/react';
 
 const req = require.context('../src', true, /\.stories\.js$/)
 
