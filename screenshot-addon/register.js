@@ -1,4 +1,4 @@
-import { getStorybook } from '@storybook/react';
+// import { getStorybook } from '@storybook/react';
 import addons from '@storybook/addons';
 
 addons.register('tsuyoshiwada/screenshot', (api) => {
@@ -6,5 +6,8 @@ addons.register('tsuyoshiwada/screenshot', (api) => {
 
   channel.on('setStories', ({ stories }) => {
     console.log(stories);
+
+    window.captureComponent('foo');
+    window.puppeteerDone();
   });
 });

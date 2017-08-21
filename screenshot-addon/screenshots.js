@@ -3,54 +3,87 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import puppeteer from 'puppeteer';
 
-const startStorybook = () => new Promise((resolve, reject) => {
-  const workingDir = path.resolve(__dirname, '..');
-  const cmd = path.resolve(workingDir, 'node_modules', '.bin', 'start-storybook');
 
-  const p = spawn(cmd, [
-    '-p 9001',
-    `-c ${workingDir}/.storybook`,
+class StorybookServer {
+  constructor(server, url) {
+    this._server = server;
+    this._url = url;
+  }
+
+  getURL() {
+    return this._url;
+  }
+
+  kill() {
+    this._server.kill();
+  }
+}
+
+const startStorybookServer = (options) => new Promise((resolve, reject) => {
+  const {
+    port,
+    configDir,
+  } = options;
+
+  const server = spawn(`${path.resolve(__dirname, '..')}/node_modules/.bin/start-storybook`, [
+    '-p', port,
+    '-c', configDir,
   ], {
+    cwd: path.resolve(__dirname, '..'),
   });
 
-  resolve(p);
+  server.stdout.on('data', (out) => {
+    const str = out.toString().trim();
+    const m = str.match(/^Storybook started on => (https?:\/\/.+)$/);
+
+    if (m) {
+      const s = new StorybookServer(server, m[1]);
+      resolve(s);
+    }
+  });
+
+  server.stderr.on('data', (out) => {
+    // console.log('STDERR: ', out.toString());
+  });
+
+  server.on('error', (err) => {
+    console.log('ERROR: ', err);
+    reject(err.toString());
+  });
+
+  server.on('exit', () => {
+    console.log('EXIT');
+  });
 });
 
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+
 (async () => {
-  try {
-    console.log('[START]');
-    const foo = await startStorybook();
+  const [server, browser] = await Promise.all([
+    startStorybookServer({
+      port: 9001,
+      configDir: '.storybook',
+    }),
+    puppeteer.launch(),
+  ]);
 
-    foo.stdout.on('data', (data) => {
-      console.log('===========', data.toString());
-    });
+  const page = await browser.newPage();
 
-    foo.stderr.on('data', (data) => {
-      console.log('===========', data.toString());
-    });
+  page.on('console', (...args) => console.log.apply(console, ['[Browser]', ...args]));
 
-    foo.on('error', (err) => {
-      console.log('ERROR: ', err);
-    });
+  await page.exposeFunction('captureComponent', (name) => {
+    const filename = path.resolve(__dirname, `${name}.png`);
+    console.log('[Node]', 'Save to ', filename);
+    return page.screenshot({ path: filename });
+  });
 
-    foo.on('close', () => {
-      console.log('CLOSE');
-    });
+  await page.exposeFunction('puppeteerDone', async (code = 0) => {
+    browser.close();
+    server.kill();
+    process.exit(code);
+  });
 
-    foo.on('exit', () => {
-      process.exit(0);
-    });
-
-    // const browser = await puppeteer.launch();
-    // const page = await browser.newPage();
-    // await page.goto('http://localhost:9001');
-    // await page.screenshot({ path: 'example.png' });
-    //
-    // browser.close();
-    // foo.kill();
-
-    // console.log('[END]');
-  } catch (e) {
-    console.log(e);
-  }
+  await page.goto(server.getURL());
 })();
