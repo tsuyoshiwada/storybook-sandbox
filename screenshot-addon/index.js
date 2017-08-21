@@ -1,10 +1,17 @@
 import React, { Component } from 'react';
 import addons from '@storybook/addons';
+import uuid from 'uuid/v4';
 
 export default class Screenshot extends Component {
   constructor(...args) {
     super(...args);
-    console.log('===========================');
+    this.id = uuid();
+    this.channel = addons.getChannel();
+    this.channel.emit('foo/constructor', this);
+  }
+
+  componentDidMount() {
+    this.channel.emit('foo/did', this);
   }
 
   render() {
@@ -12,10 +19,6 @@ export default class Screenshot extends Component {
       children,
       ...rest
     } = this.props;
-
-    const channel = addons.getChannel();
-
-    channel.emit('tsuyoshiwada/foo', 1000);
 
     return (
       <div {...rest}>
