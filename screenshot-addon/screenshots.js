@@ -1,6 +1,7 @@
 /* eslint-disable */
 import * as path from 'path';
-import { spawn } from 'child_process';
+import { execSync, spawn } from 'child_process';
+import mkdirp from 'mkdirp';
 import puppeteer from 'puppeteer';
 
 
@@ -25,7 +26,9 @@ const startStorybookServer = (options) => new Promise((resolve, reject) => {
     configDir,
   } = options;
 
-  const server = spawn(`${path.resolve(__dirname, '..')}/node_modules/.bin/start-storybook`, [
+  const bin = execSync('echo $(npm bin)', { encoding: 'utf-8' }).trim();
+
+  const server = spawn(`${bin}/start-storybook`, [
     '-p', port,
     '-c', configDir,
   ], {
@@ -59,24 +62,44 @@ const startStorybookServer = (options) => new Promise((resolve, reject) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const options = {
+  port: 9001,
+  configDir: '.storybook',
+  staticDir: null,
+  screenshotsDir: path.resolve(__dirname, '__screenshots__'),
+  viewport: {
+    width: 1024,
+    height: 768,
+    deviceScaleFactor: 1,
+    isMobile: false,
+    hasTouch: false,
+    isLandscape: false,
+  },
+};
+
 
 (async () => {
+  mkdirp(options.screenshotsDir);
+
   const [server, browser] = await Promise.all([
     startStorybookServer({
-      port: 9001,
-      configDir: '.storybook',
+      port: options.port,
+      configDir: options.configDir,
     }),
     puppeteer.launch(),
   ]);
 
   const page = await browser.newPage();
 
-  page.on('console', (...args) => console.log.apply(console, ['[Browser]', ...args]));
+  page.on('console', (...args) => console.log('[Browser]', ...args));
 
-  await page.exposeFunction('captureComponent', (name) => {
-    const filename = path.resolve(__dirname, `${name}.png`);
+  page.setViewport(options.viewport);
+
+  await page.exposeFunction('captureComponent', async (name) => {
+    const filename = path.resolve(options.screenshotsDir, `${name}.png`);
+    await page.screenshot({ path: filename });
     console.log('[Node]', 'Save to ', filename);
-    return page.screenshot({ path: filename });
+    return filename;
   });
 
   await page.exposeFunction('puppeteerDone', async (code = 0) => {
@@ -85,5 +108,5 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     process.exit(code);
   });
 
-  await page.goto(server.getURL());
+  await page.goto(`${server.getURL()}?full=1`);
 })();
