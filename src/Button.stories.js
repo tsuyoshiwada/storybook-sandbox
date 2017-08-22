@@ -13,4 +13,12 @@ storiesOf('Button', module)
   ))
   .add('with text 2', () => (
     <Button type="button">Secondary Button</Button>
+  ))
+  .add('📷 with text 2', () => (
+    <Screenshot
+      delay={1000}
+      backgroundColor="red"
+    >
+      <Button type="button">Secondary Button</Button>
+    </Screenshot>
   ));
